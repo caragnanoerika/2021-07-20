@@ -5,11 +5,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import it.polito.tdp.yelp.model.Business;
 import it.polito.tdp.yelp.model.Review;
 import it.polito.tdp.yelp.model.User;
+import it.polito.tdp.yelp.model.edgeModel;
 
 public class YelpDao {
 
@@ -109,6 +112,93 @@ public class YelpDao {
 			e.printStackTrace();
 			return null;
 		}
+	}
+
+	public List<User> getAllVertices(int n) {
+		List<User> users = new ArrayList<User>();
+		String sql = "SELECT DISTINCT u.*, COUNT(*) AS n "
+				+ "FROM reviews r, users u "
+				+ "WHERE r.user_id = u.user_id "
+				+ "GROUP BY r.user_id  "
+				+ "HAVING n >= ? ";
+		Connection conn = DBConnect.getConnection();
+		
+		try {
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setInt(1, n);
+			ResultSet res = st.executeQuery();
+			while (res.next()) {
+
+				User user = new User(res.getString("user_id"),
+						res.getInt("votes_funny"),
+						res.getInt("votes_useful"),
+						res.getInt("votes_cool"),
+						res.getString("name"),
+						res.getDouble("average_stars"),
+						res.getInt("review_count"));
+				
+				users.add(user);
+			}
+			res.close();
+			st.close();
+			conn.close();
+			return users;
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return null;
+		}
+		
+		
+	}
+	
+	public List<edgeModel> getAllEdges(int n, int anno, Map<String, User> idMapUser){
+		List<edgeModel> edges = new ArrayList<edgeModel>();
+		String sql = "SELECT r1.user_id, r2.user_id, COUNT(*) AS N "
+				+ "FROM reviews r1, reviews r2 "
+				+ "WHERE YEAR(r1.review_date)=? AND YEAR(r2.review_date)=? "
+				+ "AND r1.user_id IN (SELECT DISTINCT u.user_id  "
+				+ "				FROM reviews r, users u  "
+				+ "				WHERE r.user_id = u.user_id  "
+				+ "				GROUP BY r.user_id   "
+				+ "				HAVING COUNT(*) >= ?  "
+				+ "							)\r\n"
+				+ "AND r1.user_id IN (SELECT DISTINCT u.user_id  "
+				+ "				FROM reviews r, users u  "
+				+ "				WHERE r.user_id = u.user_id  "
+				+ "				GROUP BY r.user_id   "
+				+ "				HAVING COUNT(*) >= ?  "
+				+ "							)  "
+				+ "AND r1.user_id>r2.user_id "
+				+ "AND r1.business_id = r2.business_id "
+				+ "GROUP BY r1.user_id, r2.user_id ";
+		Connection conn = DBConnect.getConnection();
+		
+		try {
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setInt(1, anno);
+			st.setInt(2, anno);
+			st.setInt(3, n);
+			st.setInt(4, n);
+			ResultSet res = st.executeQuery();
+			while (res.next()) {
+
+				User u1 = idMapUser.get(res.getString("r1.user_id"));
+				User u2 = idMapUser.get(res.getString("r2.user_id"));
+				double peso = res.getInt("N");
+				edges.add(new edgeModel(u1,u2,peso));
+			}
+			res.close();
+			st.close();
+			conn.close();
+			
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return null;
+		}
+		
+		return edges;
 	}
 	
 	
